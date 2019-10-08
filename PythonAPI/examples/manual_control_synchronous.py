@@ -686,19 +686,20 @@ class ClientSideBoundingBoxes(object):
         """
 
         bounding_boxes = [ClientSideBoundingBoxes.get_bounding_box(vehicle, camera) for vehicle in vehicles]
+        vehicle_ids = [vehicle.id for vehicle in vehicles]
         # filter objects behind camera
-        bounding_boxes = [bb for bb in bounding_boxes if all(bb[:, 2] > 0)]
-        return bounding_boxes
+        bounding_boxes_and_ids = [(bb, vid) for (bb, vid) in zip(bounding_boxes, vehicle_ids) if all(bb[:, 2] > 0)]
+        return bounding_boxes_and_ids
 
     @staticmethod
-    def draw_bounding_boxes(display, bounding_boxes, display_dim):
+    def draw_bounding_boxes(display, bounding_boxes_and_ids, display_dim):
         """
         Draws bounding boxes on pygame display.
         """
 
         bb_surface = pygame.Surface((display_dim[0], display_dim[1]))
         bb_surface.set_colorkey((0, 0, 0))
-        for bbox in bounding_boxes:
+        for (bbox, vid) in bounding_boxes_and_ids:
             points = [(int(bbox[i, 0]), int(bbox[i, 1])) for i in range(8)]
             # draw lines
             # base
@@ -718,19 +719,50 @@ class ClientSideBoundingBoxes(object):
             pygame.draw.line(bb_surface, BB_COLOR, points[3], points[7])
         # display.blit(bb_surface, (0, 0))
 
-        for bbox in bounding_boxes:
+        for (bbox, vid) in bounding_boxes_and_ids:
             points = [(int(bbox[i, 0]), int(bbox[i, 1])) for i in range(8)]
             # xmin, xmax = min
             xmin = min([bbox[i, 0] for i in range(8)])
             xmax = max([bbox[i, 0] for i in range(8)])
             ymin = min([bbox[i, 1] for i in range(8)])
             ymax = max([bbox[i, 1] for i in range(8)])
+
+            if xmax < 0 or xmin > display_dim[0] or \
+                ymax < 0 or ymin > display_dim[1]:
+                continue
+
             pygame.draw.line(bb_surface, BB_COLOR2, (xmin, ymin), (xmin, ymax))
             pygame.draw.line(bb_surface, BB_COLOR2, (xmin, ymax), (xmax, ymax))
             pygame.draw.line(bb_surface, BB_COLOR2, (xmax, ymax), (xmax, ymin))
             pygame.draw.line(bb_surface, BB_COLOR2, (xmax, ymin), (xmin, ymin))
 
         display.blit(bb_surface, (0, 0))
+
+    @staticmethod
+    def save_bounding_boxes(start_frame_id, frame_id, bounding_boxes_and_ids, display_dim):
+        """
+        Saves the bounding boxes and vehicle IDs to a file.
+        """
+        try:
+            f = open("_ground_truth/vehicle_bboxes_{0}.txt".format(start_frame_id), 'a')
+
+            for (bbox, vid) in bounding_boxes_and_ids:
+                points = [(int(bbox[i, 0]), int(bbox[i, 1])) for i in range(8)]
+                # xmin, xmax = min
+                xmin = int(min([bbox[i, 0] for i in range(8)]))
+                xmax = int(max([bbox[i, 0] for i in range(8)]))
+                ymin = int(min([bbox[i, 1] for i in range(8)]))
+                ymax = int(max([bbox[i, 1] for i in range(8)]))
+
+                if xmax < 0 or xmin > display_dim[0] or \
+                   ymax < 0 or ymin > display_dim[1]:
+                #    print("Skipping entry: {0}|{1}|{2}|{3}|{4}|{5}\n".format(frame_id, vid, xmin, xmax, ymin, ymax))
+                    continue
+                else:
+                    f.write("{0}|{1}|{2}|{3}|{4}|{5}\n".format(frame_id, vid, xmin, xmax, ymin, ymax))
+
+        finally:
+            f.close()
 
     @staticmethod
     def get_bounding_box(vehicle, camera):
@@ -869,6 +901,8 @@ class CameraManager(object):
         self.index = None
         self.image_queue = queue.Queue()
         self.display_bboxes = True
+        self._last_frame = None
+        self._first_frame = None
 
     def toggle_camera(self):
         self.transform_index = (self.transform_index + 1) % len(self._camera_transforms)
@@ -923,8 +957,9 @@ class CameraManager(object):
         # tamert: ideally, we'd filter out any vehicles that are not visible to the camera
         if self.display_bboxes and self.sensors[self.index][0].startswith('sensor.camera'):
             vehicles = self._parent.get_world().get_actors().filter('vehicle.*')
-            bounding_boxes = ClientSideBoundingBoxes.get_bounding_boxes(vehicles, self.sensor)
-            ClientSideBoundingBoxes.draw_bounding_boxes(display, bounding_boxes, self.hud.dim)
+            bounding_boxes_and_ids = ClientSideBoundingBoxes.get_bounding_boxes(vehicles, self.sensor)
+            ClientSideBoundingBoxes.draw_bounding_boxes(display, bounding_boxes_and_ids, self.hud.dim)
+            ClientSideBoundingBoxes.save_bounding_boxes(self._first_frame, self._last_frame, bounding_boxes_and_ids, self.hud.dim)
 
     def parse_image_from_queue(self):
         if not self.image_queue.empty():
@@ -958,6 +993,10 @@ class CameraManager(object):
             self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
         # if self.recording:
         # image.save_to_disk('_out/%08d' % image.frame)
+
+        if self._first_frame is None:
+            self._first_frame = image.frame
+        self._last_frame = image.frame
 
 
 # ==============================================================================
