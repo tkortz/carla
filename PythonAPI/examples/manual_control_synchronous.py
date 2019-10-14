@@ -167,7 +167,7 @@ class World(object):
     def restart(self):
         # Keep same camera config if the camera manager exists.
         cam_index = self.camera_manager.index if self.camera_manager is not None else 0
-        cam_pos_index = self.camera_manager.transform_index if self.camera_manager is not None else 0
+        cam_pos_index = self.camera_manager.transform_index if self.camera_manager is not None else 1
         # Get a random blueprint.
         blueprint = random.choice(self.world.get_blueprint_library().filter(self._actor_filter))
         blueprint.set_attribute('role_name', self.actor_role_name)
@@ -689,19 +689,20 @@ class ClientSideBoundingBoxes(object):
 
         bounding_boxes = [ClientSideBoundingBoxes.get_bounding_box(vehicle, camera) for vehicle in vehicles]
         vehicle_ids = [vehicle.id for vehicle in vehicles]
+        vehicle_locs = [vehicle.get_transform().location for vehicle in vehicles]
         # filter objects behind camera
-        bounding_boxes_and_ids = [(bb, vid) for (bb, vid) in zip(bounding_boxes, vehicle_ids) if all(bb[:, 2] > 0)]
-        return bounding_boxes_and_ids
+        bboxes_and_vehicle_info = [(bb, vid, vloc) for (bb, vid, vloc) in zip(bounding_boxes, vehicle_ids, vehicle_locs) if all(bb[:, 2] > 0)]
+        return bboxes_and_vehicle_info
 
     @staticmethod
-    def draw_bounding_boxes(display, bounding_boxes_and_ids, display_dim):
+    def draw_bounding_boxes(display, bboxes_and_vehicle_info, display_dim):
         """
         Draws bounding boxes on pygame display.
         """
 
         bb_surface = pygame.Surface((display_dim[0], display_dim[1]))
         bb_surface.set_colorkey((0, 0, 0))
-        for (bbox, vid) in bounding_boxes_and_ids:
+        for (bbox, vid, vloc) in bboxes_and_vehicle_info:
             points = [(int(bbox[i, 0]), int(bbox[i, 1])) for i in range(8)]
             # draw lines
             # base
@@ -721,7 +722,7 @@ class ClientSideBoundingBoxes(object):
             pygame.draw.line(bb_surface, BB_COLOR, points[3], points[7])
         # display.blit(bb_surface, (0, 0))
 
-        for (bbox, vid) in bounding_boxes_and_ids:
+        for (bbox, vid, vloc) in bboxes_and_vehicle_info:
             points = [(int(bbox[i, 0]), int(bbox[i, 1])) for i in range(8)]
             # xmin, xmax = min
             xmin = min([bbox[i, 0] for i in range(8)])
@@ -741,14 +742,16 @@ class ClientSideBoundingBoxes(object):
         display.blit(bb_surface, (0, 0))
 
     @staticmethod
-    def save_bounding_boxes(start_frame_id, frame_id, bounding_boxes_and_ids, display_dim):
+    def save_bounding_boxes(start_frame_id, frame_id, bboxes_and_vehicle_info, display_dim, camera_pose):
         """
         Saves the bounding boxes and vehicle IDs to a file.
         """
         try:
             f = open("_ground_truth/vehicle_bboxes_{0}.txt".format(start_frame_id), 'a')
 
-            for (bbox, vid) in bounding_boxes_and_ids:
+            f.write("{0}|{1}|{2},{3};{4}\n".format(frame_id, -1, camera_pose.location.x, camera_pose.location.y, camera_pose.rotation.yaw))
+
+            for (bbox, vid, vloc) in bboxes_and_vehicle_info:
                 points = [(int(bbox[i, 0]), int(bbox[i, 1])) for i in range(8)]
                 # xmin, xmax = min
                 xmin = int(min([bbox[i, 0] for i in range(8)]))
@@ -761,7 +764,8 @@ class ClientSideBoundingBoxes(object):
                 #    print("Skipping entry: {0}|{1}|{2}|{3}|{4}|{5}\n".format(frame_id, vid, xmin, xmax, ymin, ymax))
                     continue
                 else:
-                    f.write("{0}|{1}|{2}|{3}|{4}|{5}\n".format(frame_id, vid, xmin, xmax, ymin, ymax))
+                    f.write("{0}|{1}|{2}|{3}|{4}|{5}|".format(frame_id, vid, xmin, xmax, ymin, ymax))
+                    f.write("{0},{1}\n".format(vloc.x, vloc.y))
 
         finally:
             f.close()
@@ -954,9 +958,9 @@ class CameraManager(object):
         # tamert: ideally, we'd filter out any vehicles that are not visible to the camera
         if self.display_bboxes:
             vehicles = self._parent.get_world().get_actors().filter('vehicle.*')
-            bounding_boxes_and_ids = ClientSideBoundingBoxes.get_bounding_boxes(vehicles, self.sensors[0])
-            ClientSideBoundingBoxes.draw_bounding_boxes(display, bounding_boxes_and_ids, self.hud.dim)
-            ClientSideBoundingBoxes.save_bounding_boxes(self._first_frame, self._last_frame, bounding_boxes_and_ids, self.hud.dim)
+            bboxes_and_vehicle_info = ClientSideBoundingBoxes.get_bounding_boxes(vehicles, self.sensors[0])
+            ClientSideBoundingBoxes.draw_bounding_boxes(display, bboxes_and_vehicle_info, self.hud.dim)
+            ClientSideBoundingBoxes.save_bounding_boxes(self._first_frame, self._last_frame, bboxes_and_vehicle_info, self.hud.dim, self.sensors[0].get_transform())
 
     def parse_images_from_queues(self):
         for (i, imgQueue) in enumerate(self.image_queues):
