@@ -197,7 +197,7 @@ class World(object):
         self.gnss_sensor = GnssSensor(self.player)
         self.camera_manager = CameraManager(self.player, self.hud, self._gamma)
         self.camera_manager.transform_index = cam_pos_index
-        self.camera_manager.set_sensor(cam_index, notify=False)
+        self.camera_manager.setup_sensors()
         actor_type = get_actor_display_name(self.player)
         self.hud.notification(actor_type)
 
@@ -209,7 +209,7 @@ class World(object):
         self.player.get_world().set_weather(preset[0])
 
     def tick(self, clock):
-        self.camera_manager.parse_image_from_queue()
+        self.camera_manager.parse_images_from_queues()
         self.hud.tick(self, clock)
 
     def render(self, display):
@@ -223,11 +223,13 @@ class World(object):
 
     def destroy(self):
         actors = [
-            self.camera_manager.sensor,
+            # self.camera_manager.sensor,
             self.collision_sensor.sensor,
             self.lane_invasion_sensor.sensor,
             self.gnss_sensor.sensor,
             self.player]
+        for sensor in self.camera_manager.sensors:
+            actors.append(sensor)
         for actor in actors:
             if actor is not None:
                 actor.destroy()
@@ -863,7 +865,6 @@ class ClientSideBoundingBoxes(object):
 
 class CameraManager(object):
     def __init__(self, parent_actor, hud, gamma_correction):
-        self.sensor = None
         self.surface = None
         self._parent = parent_actor
         self.hud = hud
@@ -877,73 +878,69 @@ class CameraManager(object):
             (carla.Transform(carla.Location(x=-8.0, z=6.0), carla.Rotation(pitch=6.0)), Attachment.SpringArm),
             (carla.Transform(carla.Location(x=-1, y=-bound_y, z=0.5)), Attachment.Rigid)]
         self.transform_index = 1
-        self.sensors = [
-            ['sensor.camera.rgb', cc.Raw, 'Camera RGB'],
-            ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)'],
-            ['sensor.camera.depth', cc.Depth, 'Camera Depth (Gray Scale)'],
-            ['sensor.camera.depth', cc.LogarithmicDepth, 'Camera Depth (Logarithmic Gray Scale)'],
-            ['sensor.camera.semantic_segmentation', cc.Raw, 'Camera Semantic Segmentation (Raw)'],
-            ['sensor.camera.semantic_segmentation', cc.CityScapesPalette,
-                'Camera Semantic Segmentation (CityScapes Palette)'],
-            ['sensor.lidar.ray_cast', None, 'Lidar (Ray-Cast)']]
+        self.sensorParams = [
+            ['sensor.camera.rgb', cc.Raw, 'Camera RGB', 'rgb'],
+            ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)', 'depth'],
+            ['sensor.camera.semantic_segmentation', cc.Raw, 'Camera Semantic Segmentation (Raw)', 'semseg']]
+        self.sensors = [None for i in range(len(self.sensorParams))]
         world = self._parent.get_world()
         bp_library = world.get_blueprint_library()
-        for item in self.sensors:
+        for item in self.sensorParams:
             bp = bp_library.find(item[0])
-            if item[0].startswith('sensor.camera'):
-                bp.set_attribute('image_size_x', str(hud.dim[0]))
-                bp.set_attribute('image_size_y', str(hud.dim[1]))
-                if bp.has_attribute('gamma'):
-                    bp.set_attribute('gamma', str(gamma_correction))
-            elif item[0].startswith('sensor.lidar'):
-                bp.set_attribute('range', '5000')
+            bp.set_attribute('image_size_x', str(hud.dim[0]))
+            bp.set_attribute('image_size_y', str(hud.dim[1]))
+            if bp.has_attribute('gamma'):
+                bp.set_attribute('gamma', str(gamma_correction))
             item.append(bp)
-        self.index = None
-        self.image_queue = queue.Queue()
-        self.display_bboxes = True
+        self.index = 0
+        self.image_queues = []
+        for i in range(len(self.sensorParams)):
+            self.image_queues.append(queue.Queue())
+        self.display_bboxes = False
         self._last_frame = None
         self._first_frame = None
 
     def toggle_camera(self):
         self.transform_index = (self.transform_index + 1) % len(self._camera_transforms)
-        self.set_sensor(self.index, notify=False, force_respawn=True)
+        self.setup_sensors()
 
     def toggle_bbox_display(self):
         self.display_bboxes = not self.display_bboxes
 
-    def set_sensor(self, index, notify=True, force_respawn=False):
-        index = index % len(self.sensors)
-        needs_respawn = True if self.index is None else \
-            (force_respawn or (self.sensors[index][0] != self.sensors[self.index][0]))
-        if needs_respawn:
-            if self.sensor is not None:
-                self.sensor.destroy()
-                self.surface = None
-            self.sensor = self._parent.get_world().spawn_actor(
-                self.sensors[index][-1],
+    def setup_sensors(self):
+        for i in range(len(self.sensors)):
+            self.image_queues[i] = queue.Queue()
+
+        self.surface = None
+
+        for (index, sensor) in enumerate(self.sensors):
+            if sensor is not None:
+                sensor.destroy()
+            sensor = self._parent.get_world().spawn_actor(
+                self.sensorParams[index][-1], # blueprint that gets appended
                 self._camera_transforms[self.transform_index][0],
                 attach_to=self._parent,
                 attachment_type=self._camera_transforms[self.transform_index][1])
-            # We need to pass the lambda a weak reference to self to avoid
-            # circular reference.
-            # weak_self = weakref.ref(self)
-            # self.sensor.listen(lambda image: CameraManager._parse_image(weak_self, image))
-            self.sensor.listen(self.image_queue.put)
 
-            if self.sensors[index][0].startswith('sensor.camera'):
-                fov = 90.0 # tamert: assuming default
-                w, h = self.hud.dim
-                calibration = np.identity(3)
-                calibration[0, 2] = w / 2.0
-                calibration[1, 2] = h / 2.0
-                calibration[0, 0] = calibration[1, 1] = w / (2.0 * np.tan(fov * np.pi / 360.0))
-                self.sensor.calibration = calibration
+            fov = 90.0 # tamert: assuming default
+            w, h = self.hud.dim
+            calibration = np.identity(3)
+            calibration[0, 2] = w / 2.0
+            calibration[1, 2] = h / 2.0
+            calibration[0, 0] = calibration[1, 1] = w / (2.0 * np.tan(fov * np.pi / 360.0))
+            sensor.calibration = calibration
+
+            sensor.listen(self.image_queues[index].put)
+
+            self.sensors[index] = sensor
+
+    def set_sensor(self, index, notify=True):
+        index = index % len(self.sensorParams)
         if notify:
-            self.hud.notification(self.sensors[index][2])
+            self.hud.notification(self.sensorParams[index][2])
         self.index = index
 
     def next_sensor(self):
-        self.image_queue = queue.Queue()
         self.set_sensor(self.index + 1)
 
     def toggle_recording(self):
@@ -955,46 +952,35 @@ class CameraManager(object):
             display.blit(self.surface, (0, 0))
 
         # tamert: ideally, we'd filter out any vehicles that are not visible to the camera
-        if self.display_bboxes and self.sensors[self.index][0].startswith('sensor.camera'):
+        if self.display_bboxes:
             vehicles = self._parent.get_world().get_actors().filter('vehicle.*')
-            bounding_boxes_and_ids = ClientSideBoundingBoxes.get_bounding_boxes(vehicles, self.sensor)
+            bounding_boxes_and_ids = ClientSideBoundingBoxes.get_bounding_boxes(vehicles, self.sensors[0])
             ClientSideBoundingBoxes.draw_bounding_boxes(display, bounding_boxes_and_ids, self.hud.dim)
             ClientSideBoundingBoxes.save_bounding_boxes(self._first_frame, self._last_frame, bounding_boxes_and_ids, self.hud.dim)
 
-    def parse_image_from_queue(self):
-        if not self.image_queue.empty():
-            image = self.image_queue.get()
-            CameraManager._parse_image(weakref.ref(self), image)
+    def parse_images_from_queues(self):
+        for (i, imgQueue) in enumerate(self.image_queues):
+            if not imgQueue.empty():
+                image = imgQueue.get()
+                CameraManager._parse_image(weakref.ref(self), image, self.sensorParams[i], self.index == i)
 
     @staticmethod
-    def _parse_image(weak_self, image):
+    def _parse_image(weak_self, image, sensor, shouldDisplay):
         self = weak_self()
         if not self:
             return
-        if self.sensors[self.index][0].startswith('sensor.lidar'):
-            points = np.frombuffer(image.raw_data, dtype=np.dtype('f4'))
-            points = np.reshape(points, (int(points.shape[0] / 3), 3))
-            lidar_data = np.array(points[:, :2])
-            lidar_data *= min(self.hud.dim) / 100.0
-            lidar_data += (0.5 * self.hud.dim[0], 0.5 * self.hud.dim[1])
-            lidar_data = np.fabs(lidar_data)  # pylint: disable=E1111
-            lidar_data = lidar_data.astype(np.int32)
-            lidar_data = np.reshape(lidar_data, (-1, 2))
-            lidar_img_size = (self.hud.dim[0], self.hud.dim[1], 3)
-            lidar_img = np.zeros((lidar_img_size), dtype = int)
-            lidar_img[tuple(lidar_data.T)] = (255, 255, 255)
-            self.surface = pygame.surfarray.make_surface(lidar_img)
-        else:
-            image.convert(self.sensors[self.index][1])
+        blueprintName, targetFormat, longName, shortName, blueprint = sensor
+        image.convert(targetFormat)
+        if shouldDisplay:
             array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
             array = np.reshape(array, (image.height, image.width, 4))
             array = array[:, :, :3]
             array = array[:, :, ::-1]
             self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
         # if self.recording:
-        # image.save_to_disk('_out/%08d' % image.frame)
+        # image.save_to_disk('_out/%08d_%s' % (image.frame, shortName))
 
-        if self._first_frame is None:
+        if self._first_frame is None and self.display_bboxes:
             self._first_frame = image.frame
         self._last_frame = image.frame
 
