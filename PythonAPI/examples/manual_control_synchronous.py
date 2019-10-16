@@ -749,7 +749,7 @@ class ClientSideBoundingBoxes(object):
         try:
             f = open("_ground_truth/vehicle_bboxes_{0}.txt".format(start_frame_id), 'a')
 
-            f.write("{0}|{1}|{2},{3};{4}\n".format(frame_id, -1, camera_pose.location.x, camera_pose.location.y, camera_pose.rotation.yaw))
+            f.write("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}\n".format(frame_id, -1, camera_pose.location.x, camera_pose.location.y, camera_pose.location.z, camera_pose.rotation.pitch, camera_pose.rotation.yaw, camera_pose.rotation.roll))
 
             for (bbox, vid, vloc) in bboxes_and_vehicle_info:
                 points = [(int(bbox[i, 0]), int(bbox[i, 1])) for i in range(8)]
@@ -765,7 +765,7 @@ class ClientSideBoundingBoxes(object):
                     continue
                 else:
                     f.write("{0}|{1}|{2}|{3}|{4}|{5}|".format(frame_id, vid, xmin, xmax, ymin, ymax))
-                    f.write("{0},{1}\n".format(vloc.x, vloc.y))
+                    f.write("{0}|{1}|{2}\n".format(vloc.x, vloc.y, vloc.z))
 
         finally:
             f.close()
@@ -982,7 +982,8 @@ class CameraManager(object):
             array = array[:, :, ::-1]
             self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
         # if self.recording:
-        # image.save_to_disk('_out/%08d_%s' % (image.frame, shortName))
+        if self.display_bboxes:
+            image.save_to_disk('_out/%s/%08d' % (shortName, image.frame))
 
         if self._first_frame is None and self.display_bboxes:
             self._first_frame = image.frame
