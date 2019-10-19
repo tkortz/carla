@@ -109,6 +109,7 @@ try:
     from pygame.locals import K_r
     from pygame.locals import K_s
     from pygame.locals import K_w
+    from pygame.locals import K_i
     from pygame.locals import K_MINUS
     from pygame.locals import K_EQUALS
 except ImportError:
@@ -272,6 +273,8 @@ class KeyboardControl(object):
                     world.camera_manager.next_sensor()
                 elif event.key > K_0 and event.key <= K_9:
                     world.camera_manager.set_sensor(event.key - 1 - K_0)
+                elif event.key == K_i:
+                    world.camera_manager.toggle_saving()
                 elif event.key == K_r and not (pygame.key.get_mods() & KMOD_CTRL):
                     world.camera_manager.toggle_recording()
                 elif event.key == K_r and (pygame.key.get_mods() & KMOD_CTRL):
@@ -729,9 +732,14 @@ class CameraManager(object):
         if notify:
             self.hud.notification(self.sensors[index][2])
         self.index = index
+        self.save_images = False
 
     def next_sensor(self):
         self.set_sensor(self.index + 1)
+
+    def toggle_saving(self):
+        self.save_images = not self.save_images
+        self.hud.notification('Image saving %s' % ('On' if self.save_images else 'Off'))
 
     def toggle_recording(self):
         self.recording = not self.recording
@@ -767,7 +775,8 @@ class CameraManager(object):
             array = array[:, :, ::-1]
             self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
         # if self.recording:
-        # image.save_to_disk('_out/%08d' % image.frame)
+        if self.save_images:
+            image.save_to_disk('_out/%08d' % image.frame)
 
 
 # ==============================================================================

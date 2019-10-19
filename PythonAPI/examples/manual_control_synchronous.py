@@ -111,6 +111,7 @@ try:
     from pygame.locals import K_s
     from pygame.locals import K_w
     from pygame.locals import K_b
+    from pygame.locals import K_i
     from pygame.locals import K_MINUS
     from pygame.locals import K_EQUALS
 except ImportError:
@@ -279,6 +280,8 @@ class KeyboardControl(object):
                     world.camera_manager.next_sensor()
                 elif event.key > K_0 and event.key <= K_9:
                     world.camera_manager.set_sensor(event.key - 1 - K_0)
+                elif event.key == K_i:
+                    world.camera_manager.toggle_saving()
                 elif event.key == K_r and not (pygame.key.get_mods() & KMOD_CTRL):
                     world.camera_manager.toggle_recording()
                 elif event.key == K_r and (pygame.key.get_mods() & KMOD_CTRL):
@@ -903,6 +906,7 @@ class CameraManager(object):
         self.display_bboxes = False
         self._last_frame = None
         self._first_frame = None
+        self.save_images = False
 
     def toggle_camera(self):
         self.transform_index = (self.transform_index + 1) % len(self._camera_transforms)
@@ -947,6 +951,10 @@ class CameraManager(object):
     def next_sensor(self):
         self.set_sensor(self.index + 1)
 
+    def toggle_saving(self):
+        self.save_images = not self.save_images
+        self.hud.notification('Image saving %s' % ('On' if self.save_images else 'Off'))
+
     def toggle_recording(self):
         self.recording = not self.recording
         self.hud.notification('Recording %s' % ('On' if self.recording else 'Off'))
@@ -960,7 +968,8 @@ class CameraManager(object):
             vehicles = self._parent.get_world().get_actors().filter('vehicle.*')
             bboxes_and_vehicle_info = ClientSideBoundingBoxes.get_bounding_boxes(vehicles, self.sensors[0])
             ClientSideBoundingBoxes.draw_bounding_boxes(display, bboxes_and_vehicle_info, self.hud.dim)
-            ClientSideBoundingBoxes.save_bounding_boxes(self._first_frame, self._last_frame, bboxes_and_vehicle_info, self.hud.dim, self.sensors[0].get_transform())
+            if self.save_images:
+                ClientSideBoundingBoxes.save_bounding_boxes(self._first_frame, self._last_frame, bboxes_and_vehicle_info, self.hud.dim, self.sensors[0].get_transform())
 
     def parse_images_from_queues(self):
         for (i, imgQueue) in enumerate(self.image_queues):
@@ -982,7 +991,7 @@ class CameraManager(object):
             array = array[:, :, ::-1]
             self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
         # if self.recording:
-        if self.display_bboxes:
+        if self.display_bboxes and self.save_images:
             image.save_to_disk('_out/%s/%08d' % (shortName, image.frame))
 
         if self._first_frame is None and self.display_bboxes:
