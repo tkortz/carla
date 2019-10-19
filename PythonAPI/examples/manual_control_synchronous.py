@@ -677,6 +677,7 @@ class GnssSensor(object):
 BB_COLOR = (248, 64, 24)
 BB_COLOR2 = (24, 248, 64)
 BB_COLOR3 = (64, 24, 248)
+BB_COLOR4 = (248, 64, 248)
 
 class ClientSideBoundingBoxes(object):
     """
@@ -685,47 +686,49 @@ class ClientSideBoundingBoxes(object):
     """
 
     @staticmethod
-    def get_bounding_boxes(vehicles, camera):
+    def get_bounding_boxes(targets, camera):
         """
-        Creates 3D bounding boxes based on carla vehicle list and camera.
+        Creates 3D bounding boxes based on carla target (vehicle || pedestrian) list and camera.
         """
 
-        bounding_boxes = [ClientSideBoundingBoxes.get_bounding_box(vehicle, camera) for vehicle in vehicles]
-        vehicle_ids = [vehicle.id for vehicle in vehicles]
-        vehicle_locs = [vehicle.get_transform().location for vehicle in vehicles]
+        bounding_boxes = [ClientSideBoundingBoxes.get_bounding_box(target, camera) for target in targets]
+        target_ids = [target.id for target in targets]
+        target_locs = [target.get_transform().location for target in targets]
         # filter objects behind camera
-        bboxes_and_vehicle_info = [(bb, vid, vloc) for (bb, vid, vloc) in zip(bounding_boxes, vehicle_ids, vehicle_locs) if all(bb[:, 2] > 0)]
-        return bboxes_and_vehicle_info
+        bboxes_and_target_info = [(bb, tid, tloc) for (bb, tid, tloc) in zip(bounding_boxes, target_ids, target_locs) if all(bb[:, 2] > 0)]
+        return bboxes_and_target_info
 
     @staticmethod
-    def draw_bounding_boxes(display, bboxes_and_vehicle_info, display_dim):
+    def draw_bounding_boxes(display, bboxes_and_target_info, display_dim, target_str):
         """
         Draws bounding boxes on pygame display.
         """
+        bbcolor1 = BB_COLOR if target_str == "vehicle" else BB_COLOR4
+        bbcolor2 = BB_COLOR2 if target_str == "vehicle" else BB_COLOR3
 
         bb_surface = pygame.Surface((display_dim[0], display_dim[1]))
         bb_surface.set_colorkey((0, 0, 0))
-        for (bbox, vid, vloc) in bboxes_and_vehicle_info:
+        for (bbox, vid, vloc) in bboxes_and_target_info:
             points = [(int(bbox[i, 0]), int(bbox[i, 1])) for i in range(8)]
             # draw lines
             # base
-            pygame.draw.line(bb_surface, BB_COLOR, points[0], points[1])
-            pygame.draw.line(bb_surface, BB_COLOR, points[1], points[2])
-            pygame.draw.line(bb_surface, BB_COLOR, points[2], points[3])
-            pygame.draw.line(bb_surface, BB_COLOR, points[3], points[0])
+            pygame.draw.line(bb_surface, bbcolor1, points[0], points[1])
+            pygame.draw.line(bb_surface, bbcolor1, points[1], points[2])
+            pygame.draw.line(bb_surface, bbcolor1, points[2], points[3])
+            pygame.draw.line(bb_surface, bbcolor1, points[3], points[0])
             # top
-            pygame.draw.line(bb_surface, BB_COLOR, points[4], points[5])
-            pygame.draw.line(bb_surface, BB_COLOR, points[5], points[6])
-            pygame.draw.line(bb_surface, BB_COLOR, points[6], points[7])
-            pygame.draw.line(bb_surface, BB_COLOR, points[7], points[4])
+            pygame.draw.line(bb_surface, bbcolor1, points[4], points[5])
+            pygame.draw.line(bb_surface, bbcolor1, points[5], points[6])
+            pygame.draw.line(bb_surface, bbcolor1, points[6], points[7])
+            pygame.draw.line(bb_surface, bbcolor1, points[7], points[4])
             # base-top
-            pygame.draw.line(bb_surface, BB_COLOR, points[0], points[4])
-            pygame.draw.line(bb_surface, BB_COLOR, points[1], points[5])
-            pygame.draw.line(bb_surface, BB_COLOR, points[2], points[6])
-            pygame.draw.line(bb_surface, BB_COLOR, points[3], points[7])
+            pygame.draw.line(bb_surface, bbcolor1, points[0], points[4])
+            pygame.draw.line(bb_surface, bbcolor1, points[1], points[5])
+            pygame.draw.line(bb_surface, bbcolor1, points[2], points[6])
+            pygame.draw.line(bb_surface, bbcolor1, points[3], points[7])
         # display.blit(bb_surface, (0, 0))
 
-        for (bbox, vid, vloc) in bboxes_and_vehicle_info:
+        for (bbox, vid, vloc) in bboxes_and_target_info:
             points = [(int(bbox[i, 0]), int(bbox[i, 1])) for i in range(8)]
             # xmin, xmax = min
             xmin = min([bbox[i, 0] for i in range(8)])
@@ -737,24 +740,26 @@ class ClientSideBoundingBoxes(object):
                 ymax < 0 or ymin > display_dim[1]:
                 continue
 
-            pygame.draw.line(bb_surface, BB_COLOR2, (xmin, ymin), (xmin, ymax))
-            pygame.draw.line(bb_surface, BB_COLOR2, (xmin, ymax), (xmax, ymax))
-            pygame.draw.line(bb_surface, BB_COLOR2, (xmax, ymax), (xmax, ymin))
-            pygame.draw.line(bb_surface, BB_COLOR2, (xmax, ymin), (xmin, ymin))
+            pygame.draw.line(bb_surface, bbcolor2, (xmin, ymin), (xmin, ymax))
+            pygame.draw.line(bb_surface, bbcolor2, (xmin, ymax), (xmax, ymax))
+            pygame.draw.line(bb_surface, bbcolor2, (xmax, ymax), (xmax, ymin))
+            pygame.draw.line(bb_surface, bbcolor2, (xmax, ymin), (xmin, ymin))
 
         display.blit(bb_surface, (0, 0))
 
     @staticmethod
-    def save_bounding_boxes(start_frame_id, frame_id, bboxes_and_vehicle_info, display_dim, camera_pose):
+    def save_bounding_boxes(start_frame_id, frame_id, bboxes_and_target_info, display_dim, camera_pose, target_str):
         """
-        Saves the bounding boxes and vehicle IDs to a file.
+        Saves the bounding boxes and target IDs to a file.
         """
+        f = None
+
         try:
-            f = open("_ground_truth/vehicle_bboxes_{0}.txt".format(start_frame_id), 'a')
+            f = open("_ground_truth/{0}_bboxes_{1}.txt".format(target_str, start_frame_id), 'a')
 
             f.write("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}\n".format(frame_id, -1, camera_pose.location.x, camera_pose.location.y, camera_pose.location.z, camera_pose.rotation.pitch, camera_pose.rotation.yaw, camera_pose.rotation.roll))
 
-            for (bbox, vid, vloc) in bboxes_and_vehicle_info:
+            for (bbox, vid, vloc) in bboxes_and_target_info:
                 points = [(int(bbox[i, 0]), int(bbox[i, 1])) for i in range(8)]
                 # xmin, xmax = min
                 xmin = int(min([bbox[i, 0] for i in range(8)]))
@@ -771,28 +776,29 @@ class ClientSideBoundingBoxes(object):
                     f.write("{0}|{1}|{2}\n".format(vloc.x, vloc.y, vloc.z))
 
         finally:
-            f.close()
+            if f is not None:
+                f.close()
 
     @staticmethod
-    def get_bounding_box(vehicle, camera):
+    def get_bounding_box(target, camera):
         """
-        Returns 3D bounding box for a vehicle based on camera view.
+        Returns 3D bounding box for a target based on camera view.
         """
-        bb_cords = ClientSideBoundingBoxes._create_bb_points(vehicle)
-        cords_x_y_z = ClientSideBoundingBoxes._vehicle_to_sensor(bb_cords, vehicle, camera)[:3, :]
+        bb_cords = ClientSideBoundingBoxes._create_bb_points(target)
+        cords_x_y_z = ClientSideBoundingBoxes._target_to_sensor(bb_cords, target, camera)[:3, :]
         cords_y_minus_z_x = np.concatenate([cords_x_y_z[1, :], -cords_x_y_z[2, :], cords_x_y_z[0, :]])
         bbox = np.transpose(np.dot(camera.calibration, cords_y_minus_z_x))
         camera_bbox = np.concatenate([bbox[:, 0] / bbox[:, 2], bbox[:, 1] / bbox[:, 2], bbox[:, 2]], axis=1)
         return camera_bbox
 
     @staticmethod
-    def _create_bb_points(vehicle):
+    def _create_bb_points(target):
         """
-        Returns 3D bounding box for a vehicle.
+        Returns 3D bounding box for a target.
         """
 
         cords = np.zeros((8, 4))
-        extent = vehicle.bounding_box.extent
+        extent = target.bounding_box.extent
         cords[0, :] = np.array([extent.x, extent.y, -extent.z, 1])
         cords[1, :] = np.array([-extent.x, extent.y, -extent.z, 1])
         cords[2, :] = np.array([-extent.x, -extent.y, -extent.z, 1])
@@ -804,25 +810,25 @@ class ClientSideBoundingBoxes(object):
         return cords
 
     @staticmethod
-    def _vehicle_to_sensor(cords, vehicle, sensor):
+    def _target_to_sensor(cords, target, sensor):
         """
-        Transforms coordinates of a vehicle bounding box to sensor.
+        Transforms coordinates of a target bounding box to sensor.
         """
 
-        world_cord = ClientSideBoundingBoxes._vehicle_to_world(cords, vehicle)
+        world_cord = ClientSideBoundingBoxes._target_to_world(cords, target)
         sensor_cord = ClientSideBoundingBoxes._world_to_sensor(world_cord, sensor)
         return sensor_cord
 
     @staticmethod
-    def _vehicle_to_world(cords, vehicle):
+    def _target_to_world(cords, target):
         """
-        Transforms coordinates of a vehicle bounding box to world.
+        Transforms coordinates of a target bounding box to world.
         """
 
-        bb_transform = carla.Transform(vehicle.bounding_box.location)
-        bb_vehicle_matrix = ClientSideBoundingBoxes.get_matrix(bb_transform)
-        vehicle_world_matrix = ClientSideBoundingBoxes.get_matrix(vehicle.get_transform())
-        bb_world_matrix = np.dot(vehicle_world_matrix, bb_vehicle_matrix)
+        bb_transform = carla.Transform(target.bounding_box.location)
+        bb_target_matrix = ClientSideBoundingBoxes.get_matrix(bb_transform)
+        target_world_matrix = ClientSideBoundingBoxes.get_matrix(target.get_transform())
+        bb_world_matrix = np.dot(target_world_matrix, bb_target_matrix)
         world_cords = np.dot(bb_world_matrix, np.transpose(cords))
         return world_cords
 
@@ -967,9 +973,15 @@ class CameraManager(object):
         if self.display_bboxes:
             vehicles = self._parent.get_world().get_actors().filter('vehicle.*')
             bboxes_and_vehicle_info = ClientSideBoundingBoxes.get_bounding_boxes(vehicles, self.sensors[0])
-            ClientSideBoundingBoxes.draw_bounding_boxes(display, bboxes_and_vehicle_info, self.hud.dim)
+            ClientSideBoundingBoxes.draw_bounding_boxes(display, bboxes_and_vehicle_info, self.hud.dim, "vehicle")
+
+            pedestrians = self._parent.get_world().get_actors().filter('walker.pedestrian.*')
+            bboxes_and_pedestrian_info = ClientSideBoundingBoxes.get_bounding_boxes(pedestrians, self.sensors[0])
+            ClientSideBoundingBoxes.draw_bounding_boxes(display, bboxes_and_pedestrian_info, self.hud.dim, "pedestrian")
+
             if self.save_images:
-                ClientSideBoundingBoxes.save_bounding_boxes(self._first_frame, self._last_frame, bboxes_and_vehicle_info, self.hud.dim, self.sensors[0].get_transform())
+                ClientSideBoundingBoxes.save_bounding_boxes(self._first_frame, self._last_frame, bboxes_and_vehicle_info, self.hud.dim, self.sensors[0].get_transform(), "vehicle")
+                ClientSideBoundingBoxes.save_bounding_boxes(self._first_frame, self._last_frame, bboxes_and_pedestrian_info, self.hud.dim, self.sensors[0].get_transform(), "pedestrian")
 
     def parse_images_from_queues(self):
         for (i, imgQueue) in enumerate(self.image_queues):
