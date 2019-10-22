@@ -210,7 +210,8 @@ class World(object):
         self.player.get_world().set_weather(preset[0])
 
     def tick(self, clock):
-        self.camera_manager.parse_images_from_queues()
+        frameNum = self.world.tick()
+        self.camera_manager.tick(frameNum)
         self.hud.tick(self, clock)
 
     def render(self, display):
@@ -690,10 +691,12 @@ class ClientSideBoundingBoxes(object):
         """
         Creates 3D bounding boxes based on carla target (vehicle || pedestrian) list and camera.
         """
-
         bounding_boxes = [ClientSideBoundingBoxes.get_bounding_box(target, camera) for target in targets]
         target_ids = [target.id for target in targets]
-        target_locs = [target.get_transform().location for target in targets]
+        # use center of bbox as position of target
+        coords = np.zeros((1,4))
+        coords[0, :] = np.array([0, 0, 0, 1])
+        target_locs = [ClientSideBoundingBoxes._target_to_world(coords, target)[:3, 0] for target in targets]
         # filter objects behind camera
         bboxes_and_target_info = [(bb, tid, tloc) for (bb, tid, tloc) in zip(bounding_boxes, target_ids, target_locs) if all(bb[:, 2] > 0)]
         return bboxes_and_target_info
@@ -708,7 +711,8 @@ class ClientSideBoundingBoxes(object):
 
         bb_surface = pygame.Surface((display_dim[0], display_dim[1]))
         bb_surface.set_colorkey((0, 0, 0))
-        for (bbox, vid, vloc) in bboxes_and_target_info:
+        for (bbox, vid, tloc) in bboxes_and_target_info:
+
             points = [(int(bbox[i, 0]), int(bbox[i, 1])) for i in range(8)]
             # draw lines
             # base
@@ -728,7 +732,7 @@ class ClientSideBoundingBoxes(object):
             pygame.draw.line(bb_surface, bbcolor1, points[3], points[7])
         # display.blit(bb_surface, (0, 0))
 
-        for (bbox, vid, vloc) in bboxes_and_target_info:
+        for (bbox, vid, tloc) in bboxes_and_target_info:
             points = [(int(bbox[i, 0]), int(bbox[i, 1])) for i in range(8)]
             # xmin, xmax = min
             xmin = min([bbox[i, 0] for i in range(8)])
@@ -759,7 +763,7 @@ class ClientSideBoundingBoxes(object):
 
             f.write("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}\n".format(frame_id, -1, camera_pose.location.x, camera_pose.location.y, camera_pose.location.z, camera_pose.rotation.pitch, camera_pose.rotation.yaw, camera_pose.rotation.roll))
 
-            for (bbox, vid, vloc) in bboxes_and_target_info:
+            for (bbox, tid, tloc) in bboxes_and_target_info:
                 points = [(int(bbox[i, 0]), int(bbox[i, 1])) for i in range(8)]
                 # xmin, xmax = min
                 xmin = int(min([bbox[i, 0] for i in range(8)]))
@@ -769,11 +773,11 @@ class ClientSideBoundingBoxes(object):
 
                 if xmax < 0 or xmin > display_dim[0] or \
                    ymax < 0 or ymin > display_dim[1]:
-                #    print("Skipping entry: {0}|{1}|{2}|{3}|{4}|{5}\n".format(frame_id, vid, xmin, xmax, ymin, ymax))
+                #    print("Skipping entry: {0}|{1}|{2}|{3}|{4}|{5}\n".format(frame_id, tid, xmin, xmax, ymin, ymax))
                     continue
                 else:
-                    f.write("{0}|{1}|{2}|{3}|{4}|{5}|".format(frame_id, vid, xmin, xmax, ymin, ymax))
-                    f.write("{0}|{1}|{2}\n".format(vloc.x, vloc.y, vloc.z))
+                    f.write("{0}|{1}|{2}|{3}|{4}|{5}|".format(frame_id, tid, xmin, xmax, ymin, ymax))
+                    f.write("{0}|{1}|{2}\n".format(tloc[0, 0], tloc[1, 0], tloc[2, 0]))
 
         finally:
             if f is not None:
@@ -983,11 +987,12 @@ class CameraManager(object):
                 ClientSideBoundingBoxes.save_bounding_boxes(self._first_frame, self._last_frame, bboxes_and_vehicle_info, self.hud.dim, self.sensors[0].get_transform(), "vehicle")
                 ClientSideBoundingBoxes.save_bounding_boxes(self._first_frame, self._last_frame, bboxes_and_pedestrian_info, self.hud.dim, self.sensors[0].get_transform(), "pedestrian")
 
-    def parse_images_from_queues(self):
+    def tick(self, frameNum):
+        # Parse images from image queues
         for (i, imgQueue) in enumerate(self.image_queues):
-            if not imgQueue.empty():
-                image = imgQueue.get()
-                CameraManager._parse_image(weakref.ref(self), image, self.sensorParams[i], self.index == i)
+            image = imgQueue.get(timeout=2.0)
+            assert image.frame == frameNum
+            CameraManager._parse_image(weakref.ref(self), image, self.sensorParams[i], self.index == i)
 
     @staticmethod
     def _parse_image(weak_self, image, sensor, shouldDisplay):
@@ -1015,7 +1020,7 @@ class CameraManager(object):
 # -- game_loop() ---------------------------------------------------------------
 # ==============================================================================
 
-TICK_MILLIS = 50
+TICK_MILLIS = 50 # 20 FPS
 
 def set_synchronous_mode(world, is_synchronous):
     settings = world.get_settings()
@@ -1033,6 +1038,9 @@ def game_loop(args):
         client = carla.Client(args.host, args.port)
         client.set_timeout(2.0)
 
+        # Enable synchronous mode and a fixed time step
+        set_synchronous_mode(client.get_world(), True)
+
         display = pygame.display.set_mode(
             (args.width, args.height),
             pygame.HWSURFACE | pygame.DOUBLEBUF)
@@ -1041,16 +1049,11 @@ def game_loop(args):
         world = World(client.get_world(), hud, args)
         controller = KeyboardControl(world, args.autopilot)
 
-        # Enable synchronous mode and a fixed time step
-        set_synchronous_mode(client.get_world(), True)
-
         clock = pygame.time.Clock()
         while True:
-            # print("About to tick")
-            client.get_world().tick()
-            clock.tick_busy_loop(TICK_MILLIS)
             if controller.parse_events(client, world, clock):
                 return
+            clock.tick_busy_loop(TICK_MILLIS)
             world.tick(clock)
             world.render(display)
             pygame.display.flip()
