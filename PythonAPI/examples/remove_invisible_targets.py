@@ -2,12 +2,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import misc
 
-scenario = "out8"
-target_type = "vehicle"
+# Set the scenario to e.g., "scenario_1" and the target_type to "vehicle"
+# or "pedestrian"
+scenario = "scenario_4"
+target_type = "pedestrian"
 
-semseg_folder = "/home/tamert/carla/PythonAPI/examples/_{0}/semseg".format(scenario)
-bbox_filepath = "/home/tamert/carla/PythonAPI/examples/{0}_bboxes_{1}.txt".format(target_type, scenario)
-bbox_outfilepath = "/home/tamert/carla/PythonAPI/examples/{0}_bboxes_{1}_vis.txt".format(target_type, scenario)
+# Check the starting frame number (used to delete any earlier images),
+# and use that here
+starting_frame = 96243
+
+results_dir = "/home/tamert/carla/PythonAPI/examples/journal"
+semseg_folder = results_dir + "/{0}/semseg".format(scenario)
+bbox_filepath = results_dir + "/{0}/{1}_bboxes_{2}.txt".format(scenario, target_type, starting_frame)
+bbox_outfilepath = results_dir + "/{0}/{1}_bboxes_{2}_vis.txt".format(scenario, target_type, starting_frame)
 
 redValForTargetType = {"pedestrian":  4,
                        "vehicle":    10}

@@ -10,7 +10,7 @@ Other relevant repositories:
 In order to reproduce the results in our paper, the following steps are necessary:
 1. Record the scenarios, or use our `.rec` files (see instructions [here](TODO)).
 2. Replay each scenario in the CARLA client to generate the ground-truth vehicle/pedestrian detections and RGB, depth, and semantic-segmentation images.  Note that this step takes a long time.
-3. Post-process the ground-truth detections to filter out invisible agents.
+3. Post-process the images and detections from CARLA.
 4. (Optional) Process images to detect vehicles/pedestrians.
 5. Use our Tracking-by-Detection to track vehicles/pedestrians in each scenario for each history probability-mass function.
 6. Process the results to compute tracking metrics.
@@ -82,11 +82,30 @@ Note that this step is very slow, as it requires running the server synchronousl
 TODO: mention what to do when it's done
 ```
 
-## 3. Post-process ground-truth detections to filter out invisible agents
+## 3. Post-process CARLA output
+
+The images and ground-truth detections outputted by CARLA need to be post-processed.
+
+### Removing images from before the replay started
+
+The sensors (e.g., RGB camera) can begin saving images before the replay is entirely set up.  Fortunately, the ground-truth detection files include in the filename the starting frame number, e.g., `vehicle_bboxes_96243.txt`.  Verify that the two detection files have the same starting frame, and then delete any images with a lower frame number from the following three directories:
+
+* `$CARLA_DIR/PythonAPI/examples/isorc20/{SCENARIO_NAME}/rgb`
+* `$CARLA_DIR/PythonAPI/examples/isorc20/{SCENARIO_NAME}/depth`
+* `$CARLA_DIR/PythonAPI/examples/isorc20/{SCENARIO_NAME}/semseg`
+
+### Filtering out fully occluded pedestrians and vehicles
+
+For the ground-truth detections, this means filtering out any that aren't visible to the camera on the ego vehicle.  This is done using the semantic segmentation information (it isn't perfect, but it's a close proxy).  Given a rectangle in 2D image space (the ground-truth detection result), the semantic label of each pixel in the rectangle is checked; if none matches the target type (pedestrian or vehicle), the detection is filtered out.
+
+For each scenario and each target type, update lines 7, 8, and 12 of `remove_invisible_targets.py` and run it.  You'll need the starting frame number from the previous step.
 
 ```
-TODO
+cd $CARLA_DIR/PythonAPI/examples
+python3 remove_invisible_targets.py
 ```
+
+This step will result in one new ground-truth detection file per target type, with a filename like `vehicle_bboxes_96243_vis.txt`.
 
 ## 4. (Optional) Detect vehicles/pedestrians in images
 
