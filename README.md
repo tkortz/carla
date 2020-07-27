@@ -61,7 +61,7 @@ cd $CARLA_DIR/PythonAPI/util
 python3 config.py -m $TOWN --w ClearNoon
 ```
 
-Then, create the folders `$CARLA_DIR/PythonAPI/examples/isorc/{SCENARIO_NAME}/_ground_truth/` for each scenario you plan to run (e.g., `scenario_1`).  Once the CARLA client has started, navigate to the PythonAPI-examples directory and run the following Python script to enable the synchronous replay:
+Then, create the folder `$CARLA_DIR/PythonAPI/examples/isorc20/{SCENARIO_NAME}/` for each scenario you plan to run (e.g., `scenario_1`).  Once the CARLA client has started, navigate to the PythonAPI-examples directory and run the following Python script to enable the synchronous replay:
 
 ```
 cd $CARLA_DIR/PythonAPI/examples
@@ -73,8 +73,8 @@ This script will spawn a vehicle (which we'll ignore), and is ready by default t
 Once the vehicle spawns, press `ctrl+p` once to replay the scenario.  This causes the following to occur:
 
 * Enables the display of ground-truth bounding boxes for both vehicles and pedestrians.
-* Writes the corresponding ground-truth positions of vehicles and pedestrians to files in the directory `$CARLA_DIR/PythonAPI/examples/isorc20/{SCENARIO_NAME}/_ground_truth/`.
-* Outputs one RGB, one depth, and one semantic segmentation image per frame from the camera on the front of the ego vehicle to the directory `$CARLA_DIR/PythonAPI/examples/isorc20/{SCENARIO_NAME}/_out/`.
+* Writes the corresponding ground-truth positions of vehicles and pedestrians to files in the directory `$CARLA_DIR/PythonAPI/examples/isorc20/{SCENARIO_NAME}/`.
+* Outputs one RGB, one depth, and one semantic segmentation image per frame from the camera on the front of the ego vehicle to per-image-type directories in `$CARLA_DIR/PythonAPI/examples/isorc20/{SCENARIO_NAME}/`.
 
 Note that this step is very slow, as it requires running the server synchronously and outputting a lot of data per frame.  If you're just testing the workflow, you can hit `escape` after a couple of frames to close the client.
 
@@ -94,7 +94,7 @@ TODO
 TODO
 ```
 
-The RGB images in `isorc/_out/
+The RGB images in `isorc/rgb/` can be used to perform vehicle or pedestrian detection.
 
 ## 5. Use TBD to track vehicles/pedestrians
 
