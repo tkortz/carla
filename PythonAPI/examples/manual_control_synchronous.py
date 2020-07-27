@@ -785,7 +785,7 @@ class ClientSideBoundingBoxes(object):
         f = None
 
         try:
-            f = open("_ground_truth/{0}_bboxes_{1}.txt".format(target_str, start_frame_id), 'a')
+            f = open("{0}/_ground_truth/{1}_bboxes_{2}.txt".format(RESULTS_DIR, target_str, start_frame_id), 'a')
 
             f.write("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}\n".format(frame_id, -1, camera_pose.location.x, camera_pose.location.y, camera_pose.location.z, camera_pose.rotation.pitch, camera_pose.rotation.yaw, camera_pose.rotation.roll))
 
@@ -1035,7 +1035,7 @@ class CameraManager(object):
             self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
         # if self.recording:
         if self.display_bboxes and self.save_images:
-            image.save_to_disk('_out/%s/%08d' % (shortName, image.frame))
+            image.save_to_disk('%s/_out/%s/%08d' % (RESULTS_DIR, shortName, image.frame))
 
         if self._first_frame is None and self.display_bboxes:
             self._first_frame = image.frame
