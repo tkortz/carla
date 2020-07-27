@@ -1,3 +1,115 @@
+Project Information
+===============
+
+This repository was used for the paper ["The Price of Schedulability in Multi-ObjectTracking: The History-vs.-Accuracy Trade-Off"](https://www.cs.unc.edu/~tamert/papers/isorc20.pdf), presented at ISORC 2020.
+
+Other relevant repositories:
+
+* [Tracking-by-Detection](TODO)
+
+In order to reproduce the results in our paper, the following steps are necessary:
+1. Record the scenarios, or use our `.rec` files (see instructions [here](TODO)).
+2. Replay each scenario in the CARLA client to generate the ground-truth vehicle/pedestrian detections and RGB, depth, and semantic-segmentation images.  Note that this step takes a long time.
+3. Post-process the ground-truth detections to filter out invisible agents.
+4. (Optional) Process images to detect vehicles/pedestrians.
+5. Use our Tracking-by-Detection to track vehicles/pedestrians in each scenario for each history probability-mass function.
+6. Process the results to compute tracking metrics.
+
+We now walk through in each step in detail.  These instructions assume the repository root directory is `$CARLA_DIR`.
+
+## 1. Record scenarios
+
+```
+TODO: finish
+```
+
+The recordings should be saved in `~/.config/Epic/CarlaUE4/Saved/`, with the hero agent ID as the filename  For example, using our pre-recorded scenario files you should have:
+```
+~/.config/Epic/CarlaUE4/Saved/2762.rec
+~/.config/Epic/CarlaUE4/Saved/4853.rec
+~/.config/Epic/CarlaUE4/Saved/6591.rec
+~/.config/Epic/CarlaUE4/Saved/7856.rec
+```
+
+Note the mapping:
+
+* Scenario 1: 6591.rec
+* Scenario 2: 4853.rec
+* Scenario 3: 2762.rec
+* Scenario 4: 7856.rec
+
+If you record your own scenarios, be sure to save the recording file with the ego-vehicle ID, and update lines 134-141 of `manual_control_synchronous.py` accordingy.
+
+## 2. Replay each scenario to generate ground-truth data and images
+
+First, launch the CARLA server.  With our setup, we use the following commands:
+
+```
+cd $CARLA_DIR
+./Dist/CARLA_Shipping_0.9.6-23-g89e329b/LinuxNoEditor/CarlaUE4.sh
+```
+
+Next, set up the scenario you want to replay using `config.py`, where `$TOWN` comes from the list below:
+
+* Scenario 1: Town01
+* Scenario 2: Town03
+* Scenario 3: Town03
+* Scenario 4: Town04
+
+```
+cd $CARLA_DIR/PythonAPI/util
+python3 config.py -m $TOWN --w ClearNoon
+```
+
+Then, create the folders `$CARLA_DIR/PythonAPI/examples/isorc/{SCENARIO_NAME}/_ground_truth/` for each scenario you plan to run (e.g., `scenario_1`).  Once the CARLA client has started, navigate to the PythonAPI-examples directory and run the following Python script to enable the synchronous replay:
+
+```
+cd $CARLA_DIR/PythonAPI/examples
+python3 manual_control_synchronous.py
+```
+
+This script will spawn a vehicle (which we'll ignore), and is ready by default to replay scenario 1.  To change scenarios, change line 132 of `manual_control_synchronous.py` to set `SCENARIO_NAME` accordingly.
+
+Once the vehicle spawns, press `ctrl+p` once to replay the scenario.  This causes the following to occur:
+
+* Enables the display of ground-truth bounding boxes for both vehicles and pedestrians.
+* Writes the corresponding ground-truth positions of vehicles and pedestrians to files in the directory `$CARLA_DIR/PythonAPI/examples/isorc20/{SCENARIO_NAME}/_ground_truth/`.
+* Outputs one RGB, one depth, and one semantic segmentation image per frame from the camera on the front of the ego vehicle to the directory `$CARLA_DIR/PythonAPI/examples/isorc20/{SCENARIO_NAME}/_out/`.
+
+Note that this step is very slow, as it requires running the server synchronously and outputting a lot of data per frame.  If you're just testing the workflow, you can hit `escape` after a couple of frames to close the client.
+
+```
+TODO: mention what to do when it's done
+```
+
+## 3. Post-process ground-truth detections to filter out invisible agents
+
+```
+TODO
+```
+
+## 4. (Optional) Detect vehicles/pedestrians in images
+
+```
+TODO
+```
+
+The RGB images in `isorc/_out/
+
+## 5. Use TBD to track vehicles/pedestrians
+
+```
+TODO
+```
+
+## 6. Compute tracking metrics
+
+```
+TODO
+```
+
+## Original CARLA README follows:
+
 CARLA Simulator
 ===============
 
