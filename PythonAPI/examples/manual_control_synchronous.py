@@ -127,6 +127,20 @@ except ImportError:
 # -- Global functions ----------------------------------------------------------
 # ==============================================================================
 
+# Recordings are at: ~/.config/Epic/CarlaUE4/Saved/{SCENARIO_VEHICLE_ID}.rec
+
+SCENARIO_NAME = "scenario_4"
+
+if SCENARIO_NAME == "scenario_1":
+    SCENARIO_VEHICLE_ID = 6591 # scenario 1 (town1)
+elif SCENARIO_NAME == "scenario_2":
+    SCENARIO_VEHICLE_ID = 4853 # scenario 2 (town3)
+elif SCENARIO_NAME == "scenario_3":
+    SCENARIO_VEHICLE_ID = 2762 # scenario 3 (town3)
+elif SCENARIO_NAME == "scenario_4":
+    SCENARIO_VEHICLE_ID = 7856 # scenario 4 (town4)
+
+RESULTS_DIR = "isorc20/" + SCENARIO_NAME
 
 def find_weather_presets():
     rgx = re.compile('.+?(?:(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|$)')
@@ -219,13 +233,14 @@ class World(object):
         self.hud.render(display)
 
     def destroy_sensors(self):
-        self.camera_manager.sensor.destroy()
-        self.camera_manager.sensor = None
+        for (i, sensor) in enumerate(self.camera_manager.sensors):
+            if sensor != None:
+                sensor.destroy()
+                self.camera_manager.sensors[i] = None
         self.camera_manager.index = None
 
     def destroy(self):
         actors = [
-            # self.camera_manager.sensor,
             self.collision_sensor.sensor,
             self.lane_invasion_sensor.sensor,
             self.gnss_sensor.sensor,
@@ -304,9 +319,16 @@ class KeyboardControl(object):
                     # disable autopilot
                     self._autopilot_enabled = False
                     world.player.set_autopilot(self._autopilot_enabled)
-                    world.hud.notification("Replaying file 'manual_recording.rec'")
+                    world.hud.notification("Replaying file '{0}.rec'".format(SCENARIO_VEHICLE_ID))
                     # replayer
-                    client.replay_file("manual_recording.rec", world.recording_start, 0, 0)
+                    client.replay_file("{0}.rec".format(SCENARIO_VEHICLE_ID), world.recording_start, 0, 0)
+                    # set camera manager to a specific vehicle in the replay
+                    vehicle = world.world.get_actor(SCENARIO_VEHICLE_ID)
+                    world.camera_manager = CameraManager(vehicle, world.hud, world._gamma)
+                    world.camera_manager.display_bboxes = True
+                    world.camera_manager.save_images = True
+                    # set up the camera manager's sensors
+                    world.camera_manager.setup_sensors()
                     world.camera_manager.set_sensor(currentIndex)
                 elif event.key == K_MINUS and (pygame.key.get_mods() & KMOD_CTRL):
                     if pygame.key.get_mods() & KMOD_SHIFT:
@@ -679,6 +701,7 @@ BB_COLOR = (248, 64, 24)
 BB_COLOR2 = (24, 248, 64)
 BB_COLOR3 = (64, 24, 248)
 BB_COLOR4 = (248, 64, 248)
+BB_COLOR5 = (248, 248, 64)
 
 class ClientSideBoundingBoxes(object):
     """
@@ -709,27 +732,30 @@ class ClientSideBoundingBoxes(object):
         bbcolor1 = BB_COLOR if target_str == "vehicle" else BB_COLOR4
         bbcolor2 = BB_COLOR2 if target_str == "vehicle" else BB_COLOR3
 
+        bbcolor_player = BB_COLOR5
+
         bb_surface = pygame.Surface((display_dim[0], display_dim[1]))
         bb_surface.set_colorkey((0, 0, 0))
         for (bbox, vid, tloc) in bboxes_and_target_info:
+            bbcolor = bbcolor1 if vid != SCENARIO_VEHICLE_ID else bbcolor_player
 
             points = [(int(bbox[i, 0]), int(bbox[i, 1])) for i in range(8)]
             # draw lines
             # base
-            pygame.draw.line(bb_surface, bbcolor1, points[0], points[1])
-            pygame.draw.line(bb_surface, bbcolor1, points[1], points[2])
-            pygame.draw.line(bb_surface, bbcolor1, points[2], points[3])
-            pygame.draw.line(bb_surface, bbcolor1, points[3], points[0])
+            pygame.draw.line(bb_surface, bbcolor, points[0], points[1])
+            pygame.draw.line(bb_surface, bbcolor, points[1], points[2])
+            pygame.draw.line(bb_surface, bbcolor, points[2], points[3])
+            pygame.draw.line(bb_surface, bbcolor, points[3], points[0])
             # top
-            pygame.draw.line(bb_surface, bbcolor1, points[4], points[5])
-            pygame.draw.line(bb_surface, bbcolor1, points[5], points[6])
-            pygame.draw.line(bb_surface, bbcolor1, points[6], points[7])
-            pygame.draw.line(bb_surface, bbcolor1, points[7], points[4])
+            pygame.draw.line(bb_surface, bbcolor, points[4], points[5])
+            pygame.draw.line(bb_surface, bbcolor, points[5], points[6])
+            pygame.draw.line(bb_surface, bbcolor, points[6], points[7])
+            pygame.draw.line(bb_surface, bbcolor, points[7], points[4])
             # base-top
-            pygame.draw.line(bb_surface, bbcolor1, points[0], points[4])
-            pygame.draw.line(bb_surface, bbcolor1, points[1], points[5])
-            pygame.draw.line(bb_surface, bbcolor1, points[2], points[6])
-            pygame.draw.line(bb_surface, bbcolor1, points[3], points[7])
+            pygame.draw.line(bb_surface, bbcolor, points[0], points[4])
+            pygame.draw.line(bb_surface, bbcolor, points[1], points[5])
+            pygame.draw.line(bb_surface, bbcolor, points[2], points[6])
+            pygame.draw.line(bb_surface, bbcolor, points[3], points[7])
         # display.blit(bb_surface, (0, 0))
 
         for (bbox, vid, tloc) in bboxes_and_target_info:
