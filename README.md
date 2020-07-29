@@ -27,7 +27,7 @@ We now walk through in each step in detail.  These instructions assume the repos
 
 ## 1. Record scenarios
 
-If you want to use our recorded scenario files, skip to [Step (g) Locating the recordings](#g\)-locating-the-recordings).  If, however, you plan to record the scenarios yourself, read on!
+If you want to use our recorded scenario files, skip to [Step (g) Locating the recordings](#g-locating-the-recordings).  If, however, you plan to record the scenarios yourself, read on!
 
 ### a) Setup
 
@@ -129,7 +129,7 @@ cd $CARLA_DIR
 ./Dist/CARLA_Shipping_0.9.6-23-g89e329b/LinuxNoEditor/CarlaUE4.sh
 ```
 
-Next, set up the scenario you want to replay using `config.py`, where `$TOWN` comes from the table in [Step 1 (c) above](#c\)-run-the-scenario).
+Next, set up the scenario you want to replay using `config.py`, where `$TOWN` comes from the table in [Step 1 (c) above](#c-run-the-scenario).
 
 ```
 cd $CARLA_DIR/PythonAPI/util
