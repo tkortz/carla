@@ -14,7 +14,7 @@ starting_frame = 96243
 results_dir = "/home/tamert/carla/PythonAPI/examples/journal"
 semseg_folder = results_dir + "/{0}/semseg".format(scenario)
 bbox_filepath = results_dir + "/{0}/{1}_bboxes_{2}.txt".format(scenario, target_type, starting_frame)
-bbox_outfilepath = results_dir + "/{0}/{1}_bboxes_{2}_vis.txt".format(scenario, target_type, starting_frame)
+bbox_outfilepath = results_dir + "/{0}/{1}_bboxes_{2}_vis.txt".format(scenario, target_type, scenario)
 
 redValForTargetType = {"pedestrian":  4,
                        "vehicle":    10}
