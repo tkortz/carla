@@ -1,9 +1,9 @@
 Project Information
 ===============
 
-This fork of [CARLA](https://github.com/carla-simulator/carla) was used for the paper ["The Price of Schedulability in Multi-ObjectTracking: The History-vs.-Accuracy Trade-Off"](https://www.cs.unc.edu/~anderson/papers/isorc20.pdf), presented at ISORC 2020.
+This fork of [CARLA](https://github.com/carla-simulator/carla) was used for an extended version of the paper ["The Price of Schedulability in Multi-ObjectTracking: The History-vs.-Accuracy Trade-Off"](https://www.cs.unc.edu/~anderson/papers/isorc20.pdf), originally presented at ISORC 2020.
 
-The primary instructions for running our experiments are available in [our experiment-running repository](https://github.com/tkortz/isorc20_experiments).
+The primary instructions for running our experiments are available in [our experiment-running repository](https://github.com/tkortz/isorc20_experiments/tree/journal).
 
 ---
 
