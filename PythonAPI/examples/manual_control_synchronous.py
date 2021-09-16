@@ -129,7 +129,7 @@ except ImportError:
 
 # Recordings are at: ~/.config/Epic/CarlaUE4/Saved/{SCENARIO_VEHICLE_ID}.rec
 
-SCENARIO_NAME = "scenario_4"
+SCENARIO_NAME = "scenario_5"
 
 if SCENARIO_NAME == "scenario_1":
     SCENARIO_VEHICLE_ID = 6591 # scenario 1 (town1)
@@ -139,6 +139,8 @@ elif SCENARIO_NAME == "scenario_3":
     SCENARIO_VEHICLE_ID = 2762 # scenario 3 (town3)
 elif SCENARIO_NAME == "scenario_4":
     SCENARIO_VEHICLE_ID = 7856 # scenario 4 (town4)
+elif SCENARIO_NAME == "scenario_5":
+    SCENARIO_VEHICLE_ID = 3698 # scenario 5 (town5)
 
 RESULTS_DIR = "isorc20_journal/" + SCENARIO_NAME
 
