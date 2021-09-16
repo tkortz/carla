@@ -140,7 +140,7 @@ elif SCENARIO_NAME == "scenario_3":
 elif SCENARIO_NAME == "scenario_4":
     SCENARIO_VEHICLE_ID = 7856 # scenario 4 (town4)
 
-RESULTS_DIR = "isorc20/" + SCENARIO_NAME
+RESULTS_DIR = "isorc20_journal/" + SCENARIO_NAME
 
 def find_weather_presets():
     rgx = re.compile('.+?(?:(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|$)')
